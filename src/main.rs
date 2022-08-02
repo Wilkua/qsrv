@@ -3,6 +3,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
+use std::thread;
 
 pub struct HttpRequest {
     pub headers: HashMap<String, String>,
@@ -257,7 +258,9 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(s) => {
-                handle_request(s);
+                thread::spawn(|| {
+                    handle_request(s);
+                });
             },
             Err(e) => {
                 println!("error: {:?}", e);
