@@ -1,5 +1,5 @@
 use eyre::Result;
-use qsrv::{file_server::FileServer, HttpRequest, Responder};
+use qsrv::{HttpRequest, Responder};
 use qsrv::util::{
     parse_headers,
     parse_locator,
@@ -77,28 +77,35 @@ fn handle_request(mut stream: TcpStream) -> Result<()> {
     let (path, _params) = parse_path_components(&req.locator.as_bytes());
     req.path = path;
 
-    let path = String::from(&req.path);
-    let path = Path::new(&path[1..]);
+    let path_str = String::from(&req.path);
+    let mut path = PathBuf::new(); //Path::new(&path[1..]);
+    path.push(".");
+    path.push(Path::new(&path_str[1..]));
+
+    if path.exists() && path.is_dir() {
+        path.push("index.html");
+    }
+
     if path.exists() && path.is_file() {
-        let responder: FileServer = FileServer::new(".")?;
-        let output = responder.handle_request(&req);
-        println!("{output}");
-        respond_with_file(req, &path.to_path_buf());
+        // Intended usage:
+        // let responder: FileServer = FileServer::new(".")?;
+        // if let Ok(()) = responder.handle_request(&req) {
+        //     return Ok(())
+        // }
+        // Here we search for a middleware handler
+        // if there is no middleware handler:
+        //     return 404
+
+        respond_with_file(req, &path);
 
         return Ok(());
-    } else if path.exists() && path.is_dir() {
-        // let tries = ["index.html", "index.htm"];
-        // for &try_file in tries {
-        //     let try_path = path.with_file_name(&try_file);
-        //     if try_path.exists() && try_path.is_file() {
-        //         respond_with_file(stream, &try_path)
-        //     }
-        // }
     }
 
     let _ = req.stream.write(
         format!("{} 404 Not Found\r\nContent-Length: 9\r\nContent-Type: text/plain\r\n\r\nNot Found", req.http_version).as_bytes()
     );
+
+    println!("404 {} \"{}\"", req.method, req.path);
 
     Ok(())
 }
@@ -118,11 +125,13 @@ fn main() {
         Err(e) => panic!("{:?}", e),
     };
 
+    println!("\nServer listening on http://localhost:3000/");
+
     for stream in listener.incoming() {
         match stream {
             Ok(s) => {
                 thread::spawn(|| {
-                    handle_request(s);
+                    let _ = handle_request(s);
                 });
             },
             Err(e) => {
