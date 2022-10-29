@@ -6,4 +6,6 @@ edition = "2021"
 [dependencies]
 clap = "4.0.2"
 eyre = "0.6.8"
-
+time = "0.3.16"
+tracing = "0.1.37"
+tracing-subscriber = "0.3.16"
