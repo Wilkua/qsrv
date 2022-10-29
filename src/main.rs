@@ -3,7 +3,7 @@ use qsrv::{file_server::FileServer, HttpRequest, Responder};
 use std::io::Write;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread;
-use tracing::{error, info, Level, span};
+use tracing::{error, info, Level};
 use tracing_subscriber::fmt::Subscriber;
 
 fn handle_request(stream: TcpStream) -> Result<()> {
