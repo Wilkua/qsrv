@@ -3,7 +3,7 @@ use qsrv::{file_server::FileServer, HttpRequest, Responder};
 use std::io::Write;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread;
-use tracing::{error, info, Level};
+use tracing::{error, info, Level, span};
 use tracing_subscriber::fmt::Subscriber;
 
 fn handle_request(stream: TcpStream) -> Result<()> {
@@ -28,7 +28,7 @@ fn handle_request(stream: TcpStream) -> Result<()> {
 
 fn main() -> Result<()> {
     let subscriber = Subscriber::builder()
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::INFO)
         .finish();
 
     tracing::subscriber::set_global_default(subscriber)?;
