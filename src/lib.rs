@@ -125,7 +125,7 @@ impl HttpResponse {
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut out = format!("HTTP/{} {} {}\r\n", self.http_version, self.status, self.status_text);
+        let mut out = format!("{} {} {}\r\n", self.http_version, self.status, self.status_text);
 
         for (key, val) in &self.headers {
             out.push_str(&format!("{key}: {val}\r\n"));
