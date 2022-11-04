@@ -1,6 +1,7 @@
 use crate::{HttpResponse, HttpRequest, Responder};
 use eyre::Result;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use tracing::{error, trace};
 
@@ -57,7 +58,10 @@ impl Responder for FileServer {
         working_path = match fs::canonicalize(working_path) {
             Ok(p) => p,
             Err(e) => {
-                error!("Failed to canonicalize path: {}", e);
+                match e.kind() {
+                    ErrorKind::NotFound => trace!("Failed to canonicalize path: Not found"),
+                    _ => error!("Failed to canonicalize path: {}", e),
+                }
                 return Ok(HttpResponse::not_found(&req.http_version, &req.method));
             },
         };
