@@ -1,11 +1,15 @@
 [package]
 name = "qsrv"
+description = "Quick and dirty HTTP server for fast development"
+authors = ["William Drescher <wilkua2@gmail.com>"]
+license = "MIT"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 clap = "4.0.2"
 eyre = "0.6.8"
-time = "0.3.16"
+time = { version = "0.3.16", features = ["macros"] }
 tracing = "0.1.37"
-tracing-subscriber = "0.3.16"
+tracing-subscriber = { version = "0.3.16", features = ["time"] }
+work_pool = "0.1.0"

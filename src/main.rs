@@ -3,13 +3,26 @@ use qsrv::{
     responders::FileServer,
     HttpRequest, HttpServer, Responder
 };
-use std::io::Write;
-use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::thread;
-use tracing::{error, info, Level};
-use tracing_subscriber::fmt::Subscriber;
+use std::{
+    io::Write,
+    net::{SocketAddr, TcpListener, TcpStream},
+    sync::Arc,
+    thread,
+};
+use time::macros::format_description;
 
-fn handle_request(mut stream: TcpStream) -> Result<()> {
+use tracing::{error, info, Level};
+use tracing_subscriber::fmt::{
+    Subscriber,
+    time::UtcTime,
+};
+use work_pool::WorkPool;
+
+fn handle_request(mut stream: Arc<TcpStream>) -> Result<()> {
+    let Some(mut stream) = Arc::get_mut(&mut stream) else {
+        return Ok(());
+    };
+
     let req = HttpRequest::new(&mut stream);
 
     let file_server = FileServer::new(".")?;
@@ -30,7 +43,9 @@ fn handle_request(mut stream: TcpStream) -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    let t = UtcTime::new(format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"));
     let subscriber = Subscriber::builder()
+        .with_timer(t)
         .with_max_level(Level::INFO)
         .finish();
 
@@ -44,19 +59,22 @@ fn main() -> Result<()> {
     let server = HttpServer::new(([0, 0, 0, 0], 3000));
     server.run()?;
 
+    let threads = usize::from(thread::available_parallelism()?);
+    let queue_cap = threads * 4;
+    info!("using {} threads with a queue capacity of {}", threads, queue_cap);
+    let mut pool = WorkPool::new(threads, Some(queue_cap)).expect("Failed to generate work pool");
+
+    pool.set_executor_and_start(|work| {
+        match handle_request(work) {
+            Ok(_) => (),
+            Err(e) => error!("Error while processing request:{}", e),
+        };
+    });
+
     for stream in listener.incoming() {
         match stream {
-            Ok(s) => {
-                thread::spawn(|| {
-                    match handle_request(s) {
-                        Ok(_) => (),
-                        Err(e) => error!("Error while processing request:{}", e),
-                    }
-                });
-            },
-            Err(e) => {
-                error!("error: {:?}", e);
-            }
+            Ok(s) => pool.dispatch(Arc::new(s)),
+            Err(e) => error!("error: {:?}", e),
         };
     }
 
