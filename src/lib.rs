@@ -2,6 +2,8 @@ use eyre::Result;
 
 pub mod util;
 
+pub mod work_queue;
+
 mod file_server;
 pub mod responders {
     pub use crate::file_server::FileServer;

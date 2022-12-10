@@ -1,9 +1,8 @@
 use clap::{ArgAction, Parser};
-use deque::{self, Stolen};
 use eyre::Result;
 use qsrv::{
     responders::FileServer,
-    HttpRequest, Responder
+    HttpRequest, Responder, work_queue
 };
 use std::{
     io::Write,
@@ -72,7 +71,6 @@ enum Work<T> {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    // let silent = args.silent.unwrap_or(false);
     if !args.silent {
         let log_level = match args.quiet {
             Some(true) => Level::ERROR,
@@ -101,25 +99,24 @@ fn main() -> Result<()> {
 
     info!("using {} threads", threads);
 
-    let (worker, stealer) = deque::new();
+    let (mut snd, recv) = work_queue::make_queue(threads * 4);
 
     let mut workers = Vec::with_capacity(threads);
     for _ in 0..threads {
-        let stealer = stealer.clone();
+        // let stealer = stealer.clone();
+        let recv = recv.clone();
         let path = Arc::clone(&path);
-        workers.push(thread::spawn(move|| {
-            loop {
-                match stealer.steal() {
-                    Stolen::Empty => thread::yield_now(),
-                    Stolen::Abort => continue,
-                    Stolen::Data(Work::Quit) => break,
-                    Stolen::Data(Work::Job(s)) => {
+        workers.push(thread::spawn(move || {
+            for work in recv {
+                match work {
+                    Work::Job(s) => {
                         match handle_request(s, &path) {
                             Ok(_) => (),
                             Err(e) => error!("Request error: {:?}", e),
                         }
                     },
-                };
+                    Work::Quit => break,
+                }
             }
         }));
     }
@@ -131,7 +128,7 @@ fn main() -> Result<()> {
 
     for stream in listener.incoming() {
         match stream {
-            Ok(s) => worker.push(Work::Job(Arc::new(s))),
+            Ok(s) => snd.dispatch(Work::Job(Arc::new(s))),
             Err(e) => error!("error: {:?}", e),
         };
     }

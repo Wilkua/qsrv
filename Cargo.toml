@@ -8,9 +8,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.0.29", features = ["derive"] }
-deque = "0.3.2"
 eyre = "0.6.8"
 time = { version = "0.3.16", features = ["macros"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.16", features = ["time"] }
-work_pool = "0.1.0"
