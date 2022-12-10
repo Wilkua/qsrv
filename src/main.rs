@@ -1,7 +1,9 @@
+use clap::{ArgAction, Parser};
+use deque::{self, Stolen};
 use eyre::Result;
 use qsrv::{
     responders::FileServer,
-    HttpRequest, HttpServer, Responder
+    HttpRequest, Responder
 };
 use std::{
     io::Write,
@@ -10,22 +12,20 @@ use std::{
     thread,
 };
 use time::macros::format_description;
-
 use tracing::{error, info, Level};
 use tracing_subscriber::fmt::{
     Subscriber,
     time::UtcTime,
 };
-use work_pool::WorkPool;
 
-fn handle_request(mut stream: Arc<TcpStream>) -> Result<()> {
+fn handle_request(mut stream: Arc<TcpStream>, path: &str) -> Result<()> {
     let Some(mut stream) = Arc::get_mut(&mut stream) else {
         return Ok(());
     };
 
     let req = HttpRequest::new(&mut stream);
 
-    let file_server = FileServer::new(".")?;
+    let file_server = FileServer::new(&path)?;
     let response = file_server.handle_request(&req)?;
 
     stream.write(&response.as_bytes())?;
@@ -42,38 +42,96 @@ fn handle_request(mut stream: Arc<TcpStream>) -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
-    let t = UtcTime::new(format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"));
-    let subscriber = Subscriber::builder()
-        .with_timer(t)
-        .with_max_level(Level::INFO)
-        .finish();
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Number of concurrent threads for handling connections
+    #[arg(short, long)]
+    concurrency: Option<usize>,
 
-    tracing::subscriber::set_global_default(subscriber)?;
+    /// Document root where served files are located
+    #[arg(short, long)]
+    document_root: Option<String>,
+
+    /// Reduce the amount of logging to only errors
+    #[arg(short, long, action=ArgAction::SetTrue)]
+    quiet: Option<bool>,
+
+    /// Suppress all log messages
+    #[arg(short, long, action=ArgAction::SetTrue, default_value="false")]
+    silent: bool,
+}
+
+#[derive(Clone)]
+enum Work<T> {
+    Job(T),
+    #[allow(dead_code)]
+    Quit
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+
+    // let silent = args.silent.unwrap_or(false);
+    if !args.silent {
+        let log_level = match args.quiet {
+            Some(true) => Level::ERROR,
+            Some(false) | None => Level::INFO,
+        };
+
+        let t = UtcTime::new(format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"));
+        let subscriber = Subscriber::builder()
+            .with_timer(t)
+            .with_max_level(log_level)
+            .finish();
+
+        tracing::subscriber::set_global_default(subscriber)?;
+    }
+
+    let path = Arc::new(args.document_root.unwrap_or(".".into()).clone());
+    info!("document root set to \"{}\"", path);
+
+    let avail_threads = usize::from(thread::available_parallelism()?);
+    let threads = args.concurrency.unwrap_or(avail_threads);
+    let threads = if threads == 0 {
+        avail_threads
+    } else {
+        threads
+    };
+
+    info!("using {} threads", threads);
+
+    let (worker, stealer) = deque::new();
+
+    let mut workers = Vec::with_capacity(threads);
+    for _ in 0..threads {
+        let stealer = stealer.clone();
+        let path = Arc::clone(&path);
+        workers.push(thread::spawn(move|| {
+            loop {
+                match stealer.steal() {
+                    Stolen::Empty => thread::yield_now(),
+                    Stolen::Abort => continue,
+                    Stolen::Data(Work::Quit) => break,
+                    Stolen::Data(Work::Job(s)) => {
+                        match handle_request(s, &path) {
+                            Ok(_) => (),
+                            Err(e) => error!("Request error: {:?}", e),
+                        }
+                    },
+                };
+            }
+        }));
+    }
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     let listener = TcpListener::bind(addr)?;
 
-    info!("Server listening on http://localhost:3000/");
-
-    let server = HttpServer::new(([0, 0, 0, 0], 3000));
-    server.run()?;
-
-    let threads = usize::from(thread::available_parallelism()?);
-    let queue_cap = threads * 4;
-    info!("using {} threads with a queue capacity of {}", threads, queue_cap);
-    let mut pool = WorkPool::new(threads, Some(queue_cap)).expect("Failed to generate work pool");
-
-    pool.set_executor_and_start(|work| {
-        match handle_request(work) {
-            Ok(_) => (),
-            Err(e) => error!("Error while processing request:{}", e),
-        };
-    });
+    info!("Server listening on {}", addr);
 
     for stream in listener.incoming() {
         match stream {
-            Ok(s) => pool.dispatch(Arc::new(s)),
+            Ok(s) => worker.push(Work::Job(Arc::new(s))),
             Err(e) => error!("error: {:?}", e),
         };
     }
