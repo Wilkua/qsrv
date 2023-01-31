@@ -1,5 +1,7 @@
 use eyre::Result;
 
+pub use mio::net::TcpStream as TcpStream;
+
 pub mod util;
 
 pub mod work_queue;

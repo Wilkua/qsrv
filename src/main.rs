@@ -2,11 +2,11 @@ use clap::{ArgAction, Parser};
 use eyre::Result;
 use qsrv::{
     responders::FileServer,
-    HttpRequest, Responder, work_queue
+    work_queue,
+    HttpRequest,  HttpServer, TcpStream, Responder,
 };
 use std::{
     io::Write,
-    net::{SocketAddr, TcpListener, TcpStream},
     sync::Arc,
     thread,
 };
@@ -103,7 +103,6 @@ fn main() -> Result<()> {
 
     let mut workers = Vec::with_capacity(threads);
     for _ in 0..threads {
-        // let stealer = stealer.clone();
         let recv = recv.clone();
         let path = Arc::clone(&path);
         workers.push(thread::spawn(move || {
@@ -121,17 +120,11 @@ fn main() -> Result<()> {
         }));
     }
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    let listener = TcpListener::bind(addr)?;
-
-    info!("Server listening on {}", addr);
-
-    for stream in listener.incoming() {
-        match stream {
-            Ok(s) => snd.dispatch(Work::Job(Arc::new(s))),
-            Err(e) => error!("error: {:?}", e),
-        };
-    }
+    let server = HttpServer::new(([0, 0, 0, 0], 3000));
+    server.run(|stream| {
+        snd.dispatch(Work::Job(Arc::new(stream)));
+    })?;
 
     Ok(())
 }
+

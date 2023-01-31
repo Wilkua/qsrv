@@ -2,7 +2,6 @@ use crate::util;
 use std::{
     collections::HashMap,
     io::Read,
-    net::TcpStream,
 };
 
 pub struct HttpRequest {
@@ -15,7 +14,7 @@ pub struct HttpRequest {
 }
 
 impl HttpRequest {
-    pub fn new(stream: &mut TcpStream) -> HttpRequest {
+    pub fn new(stream: &mut impl Read) -> HttpRequest {
         let mut buf = [0u8; 2000];
         let _ = stream.read(&mut buf);
 
