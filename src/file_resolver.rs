@@ -1,8 +1,18 @@
-use crate::{HttpResponse, HttpRequest, Responder};
-use eyre::Result;
-use std::fs;
-use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
+// use crate::{HttpResponse, HttpRequest, Responder};
+use http_body_util::Full;
+use hyper::{
+    service::Service,
+    body::{Incoming, Bytes},
+    Request, Response,
+};
+use std::{
+    error::Error,
+    future::Future,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+    pin::Pin,
+};
+use tokio::fs;
 use tracing::{error, trace};
 
 fn mime_for_file_ext(path: &Path) -> String {
@@ -93,59 +103,65 @@ fn mime_for_file_ext(path: &Path) -> String {
     mime
 }
 
-pub struct FileServer {
+pub struct FileResolver {
     root_path: PathBuf,
 }
 
-impl FileServer {
-    pub fn new(root: &str) -> Result<Self> {
+impl FileResolver {
+    pub fn new(root: &str) -> Result<Self, Box<dyn Error>> {
         let can_path = std::fs::canonicalize(Path::new(root))?;
         trace!("root canonical path: {:?}", can_path.as_os_str());
 
-        Ok(FileServer {
+        Ok(FileResolver {
             root_path: can_path,
         })
     }
 }
 
-impl Responder for FileServer {
-    fn handle_request(&self, req: &HttpRequest) -> Result<HttpResponse> {
-        let mut working_path = PathBuf::from(&self.root_path);
-        working_path.push(&req.path[1..]);
-        if working_path.is_dir() {
-            trace!("requested directory - serving index");
-            working_path.push("index.html");
-        }
-        trace!("working request path: {:?}", working_path.as_os_str());
-        working_path = match fs::canonicalize(working_path) {
-            Ok(p) => p,
-            Err(e) => {
-                match e.kind() {
-                    ErrorKind::NotFound => trace!("Failed to canonicalize path: Not found"),
-                    _ => error!("Failed to canonicalize path: {}", e),
-                }
-                return Ok(HttpResponse::not_found(&req.http_version, &req.method));
-            },
-        };
+impl Service<Request<Incoming>> for FileResolver {
+    type Response = Response<Full<Bytes>>;
+    type Error = hyper::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-        if !working_path.starts_with(&self.root_path) {
-            return Ok(HttpResponse::forbidden(&req.http_version, &req.method));
-        }
+    fn call(&mut self, req: Request<Incoming>) -> Self::Future {
+        let root = self.root_path.clone();
 
-        if let Ok(buf) = fs::read(&working_path) {
-            let mime = mime_for_file_ext(&working_path);
+        let mut working_path = PathBuf::from(&root);
+            working_path.push(&req.uri().path()[1..]);
+            if working_path.is_dir() {
+                trace!("requested directory - serving index");
+                working_path.push("index.html");
+            }
+            trace!("working request path: {:?}", working_path.as_os_str());
 
-            let mut res = HttpResponse::new(&req.http_version, &req.method);
+        Box::pin(async move {
+            let working_path = match fs::canonicalize(working_path).await {
+                Ok(p) => p,
+                Err(e) => {
+                    match e.kind() {
+                        ErrorKind::NotFound => trace!("Failed to canonicalize path: Not found"),
+                        _ => error!("Failed to canonicalize path: {}", e),
+                    }
+                    return Ok(Response::builder() .status(404) .body(Full::new(Bytes::from("Not found".to_string()))).unwrap());
+                },
+            };
 
-            res.status = 200u16;
-            res.status_text = String::from("OK");
-            res.headers.insert(String::from("content-type"), mime);
-            res.headers.insert(String::from("content-length"), buf.len().to_string());
-            res.body = Some(buf);
+            if !working_path.starts_with(&root) {
+                return Ok(Response::builder().status(403).body(Full::new(Bytes::from("Forbidden".to_string()))).unwrap());
+            }
 
-            return Ok(res);
-        }
+            if let Ok(buf) = fs::read(&working_path).await {
+                let mime = mime_for_file_ext(&working_path);
 
-        Ok(HttpResponse::not_found(&req.http_version, &req.method))
+                let res = Response::builder().status(200)
+                    .header("Content-Type", mime)
+                    .body(Full::new(Bytes::from(buf)))
+                    .unwrap();
+
+                return Ok(res);
+            }
+
+            Ok(Response::builder().status(404).body(Full::new(Bytes::from("File output".to_string()))).unwrap())
+        })
     }
 }

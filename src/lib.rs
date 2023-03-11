@@ -6,9 +6,9 @@ pub mod util;
 
 pub mod work_queue;
 
-mod file_server;
+mod file_resolver;
 pub mod responders {
-    pub use crate::file_server::FileServer;
+    pub use crate::file_resolver::FileResolver;
 }
 
 mod http_request;

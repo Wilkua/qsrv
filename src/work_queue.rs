@@ -26,7 +26,7 @@ pub struct Receiver<T: Send> {
 }
 
 impl<T: Send> Sender<T> {
-    pub fn dispatch(&mut self, data: T) {
+    pub fn dispatch(&self, data: T) {
         let mut store = self.store.lock().unwrap();
         store.push_front(data);
         drop(store);
@@ -35,7 +35,10 @@ impl<T: Send> Sender<T> {
     }
 }
 
-impl<T: Send> Receiver<T> {
+impl<T> Receiver<T>
+where
+    T: Clone + Send + Sync + 'static
+{
     pub fn find_work(&mut self) -> T {
         let lock = self.store.lock().unwrap();
         let mut store = self.cv.wait_while(lock,
@@ -47,7 +50,10 @@ impl<T: Send> Receiver<T> {
     }
 }
 
-impl<T: Send> Iterator for Receiver<T> {
+impl<T> Iterator for Receiver<T>
+where
+    T: Clone + Send + Sync + 'static
+{
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -55,7 +61,10 @@ impl<T: Send> Iterator for Receiver<T> {
     }
 }
 
-impl<T: Send> Clone for Receiver<T> {
+impl<T> Clone for Receiver<T>
+where
+    T: Clone + Send + Sync + 'static
+{
     fn clone(&self) -> Self {
         Receiver {
             cv: Arc::clone(&self.cv),
