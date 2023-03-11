@@ -3,7 +3,7 @@ use http_body_util::Full;
 use hyper::{
     service::Service,
     body::{Incoming, Bytes},
-    Request, Response,
+    Request, Response, StatusCode,
 };
 use std::{
     error::Error,
@@ -13,7 +13,7 @@ use std::{
     pin::Pin,
 };
 use tokio::fs;
-use tracing::{error, trace};
+use tracing::{error, info, trace};
 
 fn mime_for_file_ext(path: &Path) -> String {
     let mime = match path.extension() {
@@ -127,12 +127,12 @@ impl Service<Request<Incoming>> for FileResolver {
         let root = self.root_path.clone();
 
         let mut working_path = PathBuf::from(&root);
-            working_path.push(&req.uri().path()[1..]);
-            if working_path.is_dir() {
-                trace!("requested directory - serving index");
-                working_path.push("index.html");
-            }
-            trace!("working request path: {:?}", working_path.as_os_str());
+        working_path.push(&req.uri().path()[1..]);
+        if working_path.is_dir() {
+            trace!("requested directory - serving index");
+            working_path.push("index.html");
+        }
+        trace!("working request path: {:?}", working_path.as_os_str());
 
         Box::pin(async move {
             let working_path = match fs::canonicalize(working_path).await {
@@ -142,15 +142,32 @@ impl Service<Request<Incoming>> for FileResolver {
                         ErrorKind::NotFound => trace!("Failed to canonicalize path: Not found"),
                         _ => error!("Failed to canonicalize path: {}", e),
                     }
-                    return Ok(Response::builder() .status(404) .body(Full::new(Bytes::from("Not found".to_string()))).unwrap());
+                    let res = Response::builder() .status(StatusCode::NOT_FOUND) .body(Full::new(Bytes::from("Not found".to_string()))).unwrap();
+
+                info!("{} {} \"{}\" {}",
+                      res.status(),
+                      req.method(),
+                      req.uri().path_and_query().unwrap(),
+                      "-");
+
+                    return Ok(res);
                 },
             };
 
             if !working_path.starts_with(&root) {
-                return Ok(Response::builder().status(403).body(Full::new(Bytes::from("Forbidden".to_string()))).unwrap());
+                let res = Response::builder().status(StatusCode::FORBIDDEN).body(Full::new(Bytes::from("Forbidden".to_string()))).unwrap();
+
+                info!("{} {} \"{}\" {}",
+                      res.status(),
+                      req.method(),
+                      req.uri().path_and_query().unwrap(),
+                      "-");
+
+                return Ok(res);
             }
 
             if let Ok(buf) = fs::read(&working_path).await {
+                let buf_size = buf.len();
                 let mime = mime_for_file_ext(&working_path);
 
                 let res = Response::builder().status(200)
@@ -158,10 +175,26 @@ impl Service<Request<Incoming>> for FileResolver {
                     .body(Full::new(Bytes::from(buf)))
                     .unwrap();
 
+                info!("{} {} \"{}\" {}",
+                      res.status(),
+                      req.method(),
+                      req.uri().path_and_query().unwrap(),
+                      buf_size);
+
                 return Ok(res);
             }
 
-            Ok(Response::builder().status(404).body(Full::new(Bytes::from("File output".to_string()))).unwrap())
+            let res = Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Full::new(Bytes::from("File output".to_string()))).unwrap();
+
+            info!("{} {} \"{}\" {}",
+                  res.status(),
+                  req.method(),
+                  req.uri().path_and_query().unwrap(),
+                  "-");
+
+            Ok(res)
         })
     }
 }
