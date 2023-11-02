@@ -23,3 +23,6 @@ pub use http_server::HttpServer;
 pub trait Responder {
     fn handle_request(&self, request: &HttpRequest) -> Result<HttpResponse>;
 }
+
+mod command_line;
+pub use command_line::{CommandLine, Parser};

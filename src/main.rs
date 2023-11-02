@@ -1,7 +1,9 @@
-use clap::{ArgAction, Parser};
 use eyre::Result;
 use hyper::server::conn::http1;
-use qsrv::responders::FileResolver;
+use qsrv::{
+    responders::FileResolver,
+    CommandLine, Parser,
+};
 use std::net::SocketAddr;
 use time::macros::format_description;
 use tokio::net::TcpListener;
@@ -10,30 +12,6 @@ use tracing_subscriber::fmt::{
     time::UtcTime,
     Subscriber,
 };
-
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct CommandLine {
-    /// Document root where served files are located
-    #[arg(short, long)]
-    document_root: Option<String>,
-
-    // Port to listen on
-    #[arg(short, long)]
-    port: Option<u16>,
-
-    /// Reduce the amount of logging to only errors
-    #[arg(short, long, action=ArgAction::SetTrue)]
-    quiet: Option<bool>,
-
-    /// Suppress all log messages
-    #[arg(short, long, action=ArgAction::SetTrue, default_value="false")]
-    silent: bool,
-
-    // Enable verbose logging
-    #[arg(short, long, action=ArgAction::Count, default_value="0")]
-    verbose: u8,
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
