@@ -3,7 +3,7 @@ use std::collections::HashMap;
 pub fn parse_method(buf: &[u8]) -> String {
     let idx = buf.iter().position(|&i| i as char == ' ').unwrap_or(0);
 
-    return String::from_utf8(buf[..idx].to_vec()).unwrap();
+    String::from_utf8(buf[..idx].to_vec()).unwrap()
 }
 
 pub fn parse_path_components(buf: &[u8]) -> (String, HashMap<String, String>) {
@@ -64,12 +64,12 @@ pub fn parse_headers(buf: &[u8], start: usize) -> HashMap<String, String> {
     let mut sbuf = &buf[start..];
 
     loop {
-        let (header_name, buf) = parse_header_name(&sbuf);
-        if header_name == "" {
+        let (header_name, buf) = parse_header_name(sbuf);
+        if header_name.is_empty() {
             break;
         }
 
-        let (header_value, buf) = parse_header_value(&buf);
+        let (header_value, buf) = parse_header_value(buf);
 
         headers.insert(header_name.to_lowercase(), header_value);
         sbuf = &buf;

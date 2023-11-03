@@ -94,13 +94,11 @@ fn mime_for_file_ext(path: &Path) -> String {
         },
         None => "application/octet-stream",
     };
-    let mime = if mime.starts_with("text/") {
+    if mime.starts_with("text/") {
         format!("{}; charset=utf-8", mime)
     } else {
         String::from(mime)
-    };
-
-    mime
+    }
 }
 
 pub struct FileResolver {

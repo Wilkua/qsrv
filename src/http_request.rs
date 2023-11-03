@@ -34,7 +34,7 @@ impl HttpRequest {
         let headers = util::parse_headers(&buf, next + 1);
         debug!("headers = {:?}", headers);
 
-        let (path, params) = util::parse_path_components(&locator.as_bytes());
+        let (path, params) = util::parse_path_components(locator.as_bytes());
         debug!("path = {:?}, params = {:?}", path, params);
 
         Ok(HttpRequest {
