@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub struct HttpResponse {
-    pub headers: HashMap<String, String>,
+    pub headers: HashMap<Rc<str>, Rc<str>>,
     pub http_version: String,
     pub method: String,
     pub status: u16,
@@ -25,8 +26,8 @@ impl HttpResponse {
         let mut res = HttpResponse::new(version, method);
         res.status = 400u16;
         res.status_text = String::from("Bad Request");
-        res.headers.insert(String::from("content-type"), String::from("text/plain; charset=utf-8"));
-        res.headers.insert(String::from("content-length"), String::from("11"));
+        res.headers.insert("content-type".into(), "text/plain; charset=utf-8".into());
+        res.headers.insert("content-length".into(), "11".into());
         res.body = Some("Bad Request".into());
 
         res
@@ -36,8 +37,8 @@ impl HttpResponse {
         let mut res = HttpResponse::new(version, method);
         res.status = 401u16;
         res.status_text = String::from("Unauthorized");
-        res.headers.insert(String::from("content-type"), String::from("text/plain; charset=utf-8"));
-        res.headers.insert(String::from("content-length"), String::from("12"));
+        res.headers.insert("content-type".into(), "text/plain; charset=utf-8".into());
+        res.headers.insert("content-length".into(), "12".into());
         res.body = Some("Unauthorized".into());
 
         res
@@ -47,8 +48,8 @@ impl HttpResponse {
         let mut res = HttpResponse::new(version, method);
         res.status = 403u16;
         res.status_text = String::from("Forbidden");
-        res.headers.insert(String::from("content-type"), String::from("text/plain; charset=utf-8"));
-        res.headers.insert(String::from("content-length"), String::from("9"));
+        res.headers.insert("content-type".into(), "text/plain; charset=utf-8".into());
+        res.headers.insert("content-length".into(), "9".into());
         res.body = Some("Forbidden".into());
 
         res
@@ -58,8 +59,8 @@ impl HttpResponse {
         let mut res = HttpResponse::new(version, method);
         res.status = 404u16;
         res.status_text = String::from("Not Found");
-        res.headers.insert(String::from("content-type"), String::from("text/plain; charset=utf-8"));
-        res.headers.insert(String::from("content-length"), String::from("9"));
+        res.headers.insert("content-type".into(), "text/plain; charset=utf-8".into());
+        res.headers.insert("content-length".into(), "9".into());
         res.body = Some("Not Found".into());
 
         res
@@ -69,8 +70,8 @@ impl HttpResponse {
         let mut res = HttpResponse::new(version, method);
         res.status = 500u16;
         res.status_text = String::from("Server Error");
-        res.headers.insert(String::from("content-type"), String::from("text/plain; charset=utf-8"));
-        res.headers.insert(String::from("content-length"), String::from("12"));
+        res.headers.insert("content-type".into(), "text/plain; charset=utf-8".into());
+        res.headers.insert("content-length".into(), "12".into());
         res.body = Some("Server Error".into());
 
         res

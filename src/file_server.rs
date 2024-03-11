@@ -3,9 +3,10 @@ use eyre::Result;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use tracing::{error, trace};
 
-fn mime_for_file_ext(path: &Path) -> String {
+fn mime_for_file_ext(path: &Path) -> Rc<str> {
     let mime = match path.extension() {
         Some(e) => match e.to_str() {
             Some(s) => match s {
@@ -84,13 +85,13 @@ fn mime_for_file_ext(path: &Path) -> String {
         },
         None => "application/octet-stream",
     };
-    let mime = if mime.starts_with("text/") {
-        format!("{}; charset=utf-8", mime)
-    } else {
-        String::from(mime)
-    };
+    // let mime = if mime.starts_with("text/") {
+    //     format!("{}; charset=utf-8", mime)
+    // } else {
+    //     mime
+    // };
 
-    mime
+    mime.into()
 }
 
 pub struct FileServer {
@@ -139,8 +140,8 @@ impl Responder for FileServer {
 
             res.status = 200u16;
             res.status_text = String::from("OK");
-            res.headers.insert(String::from("content-type"), mime);
-            res.headers.insert(String::from("content-length"), buf.len().to_string());
+            res.headers.insert("Content-type".into(), mime);
+            res.headers.insert("Content-Length".into(), buf.len().to_string().into());
             res.body = Some(buf);
 
             return Ok(res);
