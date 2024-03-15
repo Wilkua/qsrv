@@ -1,12 +1,11 @@
 use clap::{ArgAction, Parser};
 use eyre::Result;
 use qsrv::{
-    responders::FileServer,
+    handle_request,
     work_queue,
-    HttpRequest,  HttpServer, TcpStream, Responder,
+     HttpServer,
 };
 use std::{
-    io::Write,
     sync::Arc,
     thread,
 };
@@ -16,30 +15,6 @@ use tracing_subscriber::fmt::{
     Subscriber,
     time::UtcTime,
 };
-
-fn handle_request(mut stream: Arc<TcpStream>, path: &str) -> Result<()> {
-    let Some(mut stream) = Arc::get_mut(&mut stream) else {
-        return Ok(());
-    };
-
-    let req = HttpRequest::new(&mut stream);
-
-    let file_server = FileServer::new(&path)?;
-    let response = file_server.handle_request(&req)?;
-
-    stream.write(&response.as_bytes())?;
-
-    info!("{} {} \"{}\" {} bytes",
-        &response.status,
-        &response.method,
-        &req.path,
-        match &response.body {
-            Some(b) => b.len(),
-            None => 0,
-        });
-
-    Ok(())
-}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

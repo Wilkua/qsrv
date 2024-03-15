@@ -89,7 +89,7 @@ impl HttpResponse {
         let mut out: Vec<u8> = out.into();
 
         match &self.body {
-            Some(b) => out.extend(&*b),
+            Some(b) => out.extend(b),
             None => (),
         };
 

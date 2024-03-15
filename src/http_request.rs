@@ -23,7 +23,7 @@ impl HttpRequest {
         let (version, next) = util::parse_version(&buf, next + 1);
         let headers = util::parse_headers(&buf, next + 1);
 
-        let (path, params) = util::parse_path_components(&locator.as_bytes());
+        let (path, params) = util::parse_path_components(locator.as_bytes());
 
         HttpRequest {
             headers,

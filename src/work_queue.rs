@@ -39,7 +39,7 @@ impl<T: Send> Receiver<T> {
     pub fn find_work(&mut self) -> T {
         let lock = self.store.lock().unwrap();
         let mut store = self.cv.wait_while(lock,
-            |store: &mut VecDeque<T>| { store.len() == 0 }).unwrap();
+            |store: &mut VecDeque<T>| { store.is_empty() }).unwrap();
         let work = store.pop_back().unwrap();
         drop(store);
 
